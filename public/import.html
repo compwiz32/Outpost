@@ -1,0 +1,385 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Import Bookmarks</title>
+<script>
+  (function () {
+    var t = localStorage.getItem('bookmark_theme');
+    if (t === 'light' || t === 'dark') document.documentElement.setAttribute('data-theme', t);
+  })();
+</script>
+<style>
+  :root {
+    --bg: #12151b;
+    --panel: #191d25;
+    --border: #262b35;
+    --text: #dce1e8;
+    --text-dim: #7b8494;
+    --accent: #5fb3ae;
+    --accent-dim: #3d7873;
+    --error: #d97757;
+    --ok-bg: #1f2e2b;
+    --err-bg: #2e1f1f;
+    --tag-bg: #23283350;
+    --mono: ui-monospace, "JetBrains Mono", "SFMono-Regular", Consolas, monospace;
+    --sans: -apple-system, "Segoe UI", Inter, system-ui, sans-serif;
+  }
+  @media (prefers-color-scheme: light) {
+    :root:not([data-theme="dark"]) {
+      --bg: #f5f6f8;
+      --panel: #ffffff;
+      --border: #dde1e7;
+      --text: #1c2128;
+      --text-dim: #5b6472;
+      --accent: #1f8a80;
+      --accent-dim: #d7ede9;
+      --error: #c1442c;
+      --ok-bg: #e3f3ef;
+      --err-bg: #fbe6e0;
+      --tag-bg: #eef1f4;
+    }
+  }
+  :root[data-theme="light"] {
+    --bg: #f5f6f8;
+    --panel: #ffffff;
+    --border: #dde1e7;
+    --text: #1c2128;
+    --text-dim: #5b6472;
+    --accent: #1f8a80;
+    --accent-dim: #d7ede9;
+    --error: #c1442c;
+    --ok-bg: #e3f3ef;
+    --err-bg: #fbe6e0;
+    --tag-bg: #eef1f4;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--text);
+    font-family: var(--sans);
+    padding: 24px;
+    max-width: 520px;
+    margin: 0 auto;
+  }
+  .page-head {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    margin: 0 0 18px;
+  }
+  h1 {
+    font-family: var(--mono);
+    font-size: 15px;
+    font-weight: 600;
+    margin: 0;
+  }
+  h1::before { content: "> "; color: var(--accent); }
+  .theme-toggle {
+    font-family: var(--mono);
+    font-size: 14px;
+    color: var(--text-dim);
+    background: none;
+    border: 1px solid var(--border);
+    cursor: pointer;
+    padding: 4px 9px;
+    border-radius: 4px;
+    line-height: 1.4;
+  }
+  .theme-toggle:hover { color: var(--accent); border-color: var(--accent-dim); }
+  p.intro {
+    font-size: 13.5px;
+    color: var(--text-dim);
+    line-height: 1.5;
+    margin: 0 0 20px;
+  }
+  label {
+    display: block;
+    font-family: var(--mono);
+    font-size: 11.5px;
+    color: var(--text-dim);
+    margin: 14px 0 4px;
+  }
+  #file-input {
+    width: 100%;
+    background: var(--panel);
+    border: 1px solid var(--border);
+    color: var(--text);
+    font-family: var(--sans);
+    font-size: 13px;
+    padding: 9px 10px;
+    border-radius: 4px;
+  }
+  #preview {
+    margin-top: 12px;
+    font-size: 13px;
+    color: var(--text-dim);
+    line-height: 1.5;
+  }
+  #preview.err { color: var(--error); }
+  .mode-row {
+    display: flex;
+    align-items: flex-start;
+    gap: 8px;
+    margin-top: 18px;
+    font-size: 13px;
+    color: var(--text-dim);
+  }
+  .mode-row input { width: auto; margin-top: 3px; }
+  .mode-row .warn { color: var(--error); font-weight: 600; }
+  button.action {
+    margin-top: 20px;
+    width: 100%;
+    background: var(--accent);
+    color: #101319;
+    border: none;
+    font-family: var(--mono);
+    font-weight: 600;
+    font-size: 13.5px;
+    padding: 11px;
+    border-radius: 4px;
+    cursor: pointer;
+  }
+  button.action:hover { background: #74c4bf; }
+  button.action:disabled { background: var(--accent-dim); cursor: default; }
+  #status {
+    margin-top: 14px;
+    font-family: var(--mono);
+    font-size: 12.5px;
+    display: none;
+    padding: 8px 10px;
+    border-radius: 4px;
+  }
+  #status.ok { display: block; background: var(--ok-bg); color: var(--accent); }
+  #status.err { display: block; background: var(--err-bg); color: var(--error); }
+  a.back {
+    display: inline-block;
+    margin-top: 20px;
+    font-family: var(--mono);
+    font-size: 12px;
+    color: var(--text-dim);
+    text-decoration: none;
+  }
+  a.back:hover { color: var(--accent); }
+</style>
+</head>
+<body>
+
+<div class="page-head">
+  <h1>import bookmarks</h1>
+  <button id="theme-toggle" class="theme-toggle" type="button" title="Toggle light/dark theme">◐</button>
+</div>
+
+<p class="intro">
+  Accepts a JSON file in this project's own format (what "export" produces,
+  or Convert-PinboardExport.ps1's output), or a Netscape Bookmark HTML file
+  (the standard export format from Chrome, Firefox, Safari, and Edge). By
+  default, bookmarks already in your archive (matched by URL) are skipped —
+  nothing existing gets touched unless you check "replace everything" below.
+</p>
+
+<label for="file-input">Bookmarks file (.json, .html)</label>
+<input id="file-input" type="file" accept=".json,.html,.htm">
+
+<div id="preview"></div>
+
+<div class="mode-row">
+  <input id="mode-replace" type="checkbox">
+  <label for="mode-replace" style="margin:0;display:inline;font-family:var(--sans);font-size:13px;color:var(--text-dim);">
+    <span class="warn">Replace everything</span> instead of merging — deletes
+    all existing bookmarks and keeps only what's in this file. Use this to
+    restore from a full backup.
+  </label>
+</div>
+
+<button id="import-btn" class="action" type="button" disabled>Import</button>
+<div id="status"></div>
+
+<a class="back" href="/">&larr; back to archive</a>
+
+<script>
+const fileInput = document.getElementById('file-input');
+const previewEl = document.getElementById('preview');
+const modeReplace = document.getElementById('mode-replace');
+const importBtn = document.getElementById('import-btn');
+const statusEl = document.getElementById('status');
+
+const themeToggle = document.getElementById('theme-toggle');
+function effectiveTheme() {
+  const explicit = document.documentElement.getAttribute('data-theme');
+  if (explicit) return explicit;
+  return window.matchMedia('(prefers-color-scheme: light)').matches ? 'light' : 'dark';
+}
+themeToggle.addEventListener('click', () => {
+  const next = effectiveTheme() === 'light' ? 'dark' : 'light';
+  localStorage.setItem('bookmark_theme', next);
+  document.documentElement.setAttribute('data-theme', next);
+});
+
+function getToken() {
+  let token = localStorage.getItem('bookmark_add_token');
+  if (!token) {
+    token = prompt('Enter your add token (set once, saved on this device):');
+    if (token) localStorage.setItem('bookmark_add_token', token.trim());
+  }
+  return token;
+}
+
+function computeDomain(url) {
+  try {
+    return new URL(url).hostname.replace(/^www\./, '');
+  } catch {
+    return null;
+  }
+}
+
+function normalizeEntry(raw) {
+  const url = String(raw.url || '').trim();
+  if (!url) return null;
+  try {
+    const parsed = new URL(url);
+    if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') return null;
+  } catch {
+    return null;
+  }
+
+  const tags = Array.isArray(raw.tags)
+    ? raw.tags.map(t => String(t).trim().toLowerCase()).filter(Boolean)
+    : String(raw.tags || '').split(/[,\s]+/).map(t => t.toLowerCase()).filter(Boolean);
+
+  return {
+    id: (typeof raw.id === 'string' && raw.id.trim()) ? raw.id.trim() : null,
+    title: String(raw.title || url).trim(),
+    url,
+    domain: computeDomain(url),
+    notes: String(raw.notes || '').trim(),
+    tags: [...new Set(tags)],
+    date: raw.date || new Date().toISOString().slice(0, 10),
+  };
+}
+
+function parseJsonFile(text) {
+  const data = JSON.parse(text);
+  if (!Array.isArray(data)) throw new Error('JSON file must contain an array of bookmarks');
+  return data.map(normalizeEntry).filter(Boolean);
+}
+
+function parseNetscapeHtml(text) {
+  const doc = new DOMParser().parseFromString(text, 'text/html');
+  const anchors = [...doc.querySelectorAll('a[href]')];
+  return anchors.map(a => {
+    const addDate = a.getAttribute('add_date');
+    let date = null;
+    if (addDate && /^\d+$/.test(addDate)) {
+      const d = new Date(Number(addDate) * 1000);
+      if (!isNaN(d.getTime())) date = d.toISOString().slice(0, 10);
+    }
+    return normalizeEntry({
+      url: a.getAttribute('href'),
+      title: a.textContent,
+      tags: a.getAttribute('tags') || '',
+      date,
+    });
+  }).filter(Boolean);
+}
+
+let parsedEntries = null;
+
+fileInput.addEventListener('change', async () => {
+  const file = fileInput.files[0];
+  parsedEntries = null;
+  previewEl.textContent = '';
+  previewEl.className = '';
+  importBtn.disabled = true;
+  if (!file) return;
+
+  try {
+    const text = await file.text();
+    const looksJson = file.name.toLowerCase().endsWith('.json') || text.trim().startsWith('[');
+    parsedEntries = looksJson ? parseJsonFile(text) : parseNetscapeHtml(text);
+
+    if (!parsedEntries.length) {
+      previewEl.textContent = 'No valid bookmarks found in that file.';
+      previewEl.className = 'err';
+      return;
+    }
+
+    previewEl.textContent = 'Found ' + parsedEntries.length + ' bookmark(s). Checking against your archive...';
+
+    const res = await fetch('/.netlify/functions/list', { cache: 'no-store' });
+    const existing = res.ok ? await res.json() : [];
+    const existingUrls = new Set(existing.map(b => b.url));
+    const newCount = parsedEntries.filter(e => !existingUrls.has(e.url)).length;
+    const dupCount = parsedEntries.length - newCount;
+
+    previewEl.textContent = parsedEntries.length + ' bookmark(s) found — ' + newCount +
+      ' new, ' + dupCount + ' already in your archive (skipped unless "replace everything" is checked).';
+    importBtn.disabled = false;
+  } catch (err) {
+    previewEl.textContent = 'Could not parse that file: ' + err.message;
+    previewEl.className = 'err';
+  }
+});
+
+importBtn.addEventListener('click', async () => {
+  if (!parsedEntries || !parsedEntries.length) return;
+  const token = getToken();
+  if (!token) return;
+
+  const replace = modeReplace.checked;
+  if (replace && !confirm(
+    'This will REPLACE your entire archive with only the ' + parsedEntries.length +
+    ' bookmark(s) from this file, deleting everything else currently stored. Are you sure?'
+  )) {
+    return;
+  }
+
+  importBtn.disabled = true;
+  statusEl.className = '';
+  statusEl.style.display = 'none';
+
+  try {
+    let finalList;
+    if (replace) {
+      finalList = parsedEntries.map(e => ({ ...e, id: e.id || crypto.randomUUID() }));
+    } else {
+      const res = await fetch('/.netlify/functions/list', { cache: 'no-store' });
+      const existing = res.ok ? await res.json() : [];
+      const existingUrls = new Set(existing.map(b => b.url));
+      const toAdd = parsedEntries
+        .filter(e => !existingUrls.has(e.url))
+        .map(e => ({ ...e, id: e.id || crypto.randomUUID() }));
+      finalList = [...existing, ...toAdd];
+    }
+
+    const seedRes = await fetch('/.netlify/functions/seed', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': 'Bearer ' + token,
+      },
+      body: JSON.stringify(finalList),
+    });
+
+    if (seedRes.status === 401) {
+      localStorage.removeItem('bookmark_add_token');
+      throw new Error('Bad token — try again');
+    }
+    if (!seedRes.ok) throw new Error('Server returned ' + seedRes.status);
+
+    const result = await seedRes.json();
+    statusEl.textContent = 'Imported. Your archive now has ' + result.imported + ' bookmark(s).';
+    statusEl.className = 'ok';
+  } catch (err) {
+    statusEl.textContent = 'Error: ' + err.message;
+    statusEl.className = 'err';
+  } finally {
+    importBtn.disabled = false;
+  }
+});
+</script>
+
+</body>
+</html>

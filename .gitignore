@@ -1,0 +1,6 @@
+node_modules/
+.netlify/
+
+# Personal bookmark data - never commit or publish
+pinboard_export*.json
+seed*.json

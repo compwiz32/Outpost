@@ -1,0 +1,693 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Bookmark Archive</title>
+<script>
+  (function () {
+    var t = localStorage.getItem('bookmark_theme');
+    if (t === 'light' || t === 'dark') document.documentElement.setAttribute('data-theme', t);
+  })();
+</script>
+<style>
+  :root {
+    --bg: #12151b;
+    --panel: #191d25;
+    --border: #262b35;
+    --text: #dce1e8;
+    --text-dim: #7b8494;
+    --notes-text: #b7bec9;
+    --accent: #5fb3ae;
+    --accent-dim: #3d7873;
+    --tag-bg: #23283350;
+    --tag-active: #d8a657;
+    --error: #d97757;
+    --ok-bg: #1f2e2b;
+    --err-bg: #2e1f1f;
+    --mono: ui-monospace, "JetBrains Mono", "SFMono-Regular", Consolas, monospace;
+    --sans: -apple-system, "Segoe UI", Inter, system-ui, sans-serif;
+  }
+  @media (prefers-color-scheme: light) {
+    :root:not([data-theme="dark"]) {
+      --bg: #f5f6f8;
+      --panel: #ffffff;
+      --border: #dde1e7;
+      --text: #1c2128;
+      --text-dim: #5b6472;
+      --notes-text: #3f4753;
+      --accent: #1f8a80;
+      --accent-dim: #d7ede9;
+      --tag-bg: #eef1f4;
+      --tag-active: #d8a657;
+      --error: #c1442c;
+      --ok-bg: #e3f3ef;
+      --err-bg: #fbe6e0;
+    }
+  }
+  :root[data-theme="light"] {
+    --bg: #f5f6f8;
+    --panel: #ffffff;
+    --border: #dde1e7;
+    --text: #1c2128;
+    --text-dim: #5b6472;
+    --notes-text: #3f4753;
+    --accent: #1f8a80;
+    --accent-dim: #d7ede9;
+    --tag-bg: #eef1f4;
+    --tag-active: #d8a657;
+    --error: #c1442c;
+    --ok-bg: #e3f3ef;
+    --err-bg: #fbe6e0;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--text);
+    font-family: var(--sans);
+    font-size: 16.5px;
+    line-height: 1.55;
+  }
+  header {
+    position: sticky;
+    top: 0;
+    background: var(--bg);
+    border-bottom: 1px solid var(--border);
+    padding: 16px 24px;
+    z-index: 10;
+  }
+  .titlebar {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    margin-bottom: 12px;
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+  .titlebar h1 {
+    font-family: var(--mono);
+    font-size: 17.5px;
+    font-weight: 600;
+    letter-spacing: 0.02em;
+    color: var(--text);
+    margin: 0;
+  }
+  .titlebar h1::before { content: "> "; color: var(--accent); }
+  .titlebar-right { display: flex; align-items: center; gap: 14px; }
+  .meta {
+    font-family: var(--mono);
+    font-size: 13.5px;
+    color: var(--text-dim);
+  }
+  #add-link {
+    font-family: var(--mono);
+    font-size: 13.5px;
+    color: var(--accent);
+    text-decoration: none;
+    border: 1px solid var(--accent-dim);
+    padding: 5px 11px;
+    border-radius: 4px;
+  }
+  #add-link:hover { background: var(--accent-dim); color: var(--text); }
+  #sort-select {
+    font-family: var(--mono);
+    font-size: 13px;
+    color: var(--text-dim);
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    padding: 5px 8px;
+    cursor: pointer;
+    outline: none;
+  }
+  #sort-select:hover, #sort-select:focus { color: var(--accent); border-color: var(--accent-dim); }
+  .theme-toggle, .export-btn {
+    font-family: var(--mono);
+    font-size: 14px;
+    color: var(--text-dim);
+    background: none;
+    border: 1px solid var(--border);
+    cursor: pointer;
+    padding: 4px 9px;
+    border-radius: 4px;
+    line-height: 1.4;
+    text-decoration: none;
+    display: inline-block;
+  }
+  .theme-toggle:hover, .export-btn:hover { color: var(--accent); border-color: var(--accent-dim); }
+  .export-wrap { position: relative; }
+  .export-menu {
+    display: none;
+    position: absolute;
+    top: calc(100% + 6px);
+    right: 0;
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    overflow: hidden;
+    min-width: 100px;
+    z-index: 20;
+    flex-direction: column;
+  }
+  .export-menu.open { display: flex; }
+  .export-menu button {
+    font-family: var(--mono);
+    font-size: 12.5px;
+    color: var(--text);
+    background: none;
+    border: none;
+    text-align: left;
+    padding: 8px 12px;
+    cursor: pointer;
+  }
+  .export-menu button:hover { background: var(--accent-dim); }
+  #search {
+    width: 100%;
+    background: var(--panel);
+    border: 1px solid var(--border);
+    color: var(--text);
+    font-family: var(--mono);
+    font-size: 15.5px;
+    padding: 11px 13px;
+    border-radius: 4px;
+    outline: none;
+  }
+  #search:focus { border-color: var(--accent); }
+  #search::placeholder { color: var(--text-dim); }
+  main { padding: 20px 24px 60px; max-width: 1200px; margin: 0 auto; }
+  .columns { display: grid; grid-template-columns: 5fr 1fr; gap: 32px; align-items: start; }
+  .col-tags {
+    position: sticky;
+    top: 118px;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    max-height: calc(100vh - 140px);
+  }
+  #tag-search {
+    width: 100%;
+    background: var(--panel);
+    border: 1px solid var(--border);
+    color: var(--text);
+    font-family: var(--mono);
+    font-size: 13px;
+    padding: 8px 10px;
+    border-radius: 4px;
+    outline: none;
+    flex-shrink: 0;
+  }
+  #tag-search:focus { border-color: var(--accent); }
+  #tag-search::placeholder { color: var(--text-dim); }
+  #tagbar {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    overflow-y: auto;
+    padding-right: 4px;
+  }
+  .tag-empty {
+    font-family: var(--mono);
+    font-size: 12.5px;
+    color: var(--text-dim);
+  }
+  .tag-chip {
+    font-family: var(--mono);
+    font-size: 13px;
+    color: var(--text-dim);
+    background: var(--tag-bg);
+    border: 1px solid var(--border);
+    padding: 6px 12px;
+    border-radius: 6px;
+    cursor: pointer;
+    user-select: none;
+    text-align: left;
+  }
+  .tag-chip:hover { color: var(--text); border-color: var(--accent-dim); }
+  .tag-chip.active {
+    color: #14171c;
+    background: var(--tag-active);
+    border-color: var(--tag-active);
+  }
+  .row {
+    border-bottom: 1px solid var(--border);
+    padding: 16px 0;
+  }
+  .row-top {
+    display: flex;
+    align-items: baseline;
+    gap: 10px;
+    flex-wrap: wrap;
+  }
+  .row a.title {
+    color: var(--text);
+    font-weight: 600;
+    text-decoration: none;
+    font-size: 16.5px;
+  }
+  .row a.title:hover { color: var(--accent); text-decoration: underline; }
+  .row .domain {
+    font-family: var(--mono);
+    font-size: 13px;
+    color: var(--text-dim);
+  }
+  .row .date {
+    font-family: var(--mono);
+    font-size: 13px;
+    color: var(--text-dim);
+    margin-left: auto;
+  }
+  .row .notes {
+    margin-top: 4px;
+    color: var(--notes-text);
+    font-size: 14.5px;
+  }
+  .row .tags { margin-top: 6px; display: flex; flex-wrap: wrap; gap: 6px; }
+  .row .tags span {
+    font-family: var(--mono);
+    font-size: 12.5px;
+    color: var(--accent);
+    background: var(--tag-bg);
+    padding: 3px 9px;
+    border-radius: 999px;
+    cursor: pointer;
+  }
+  .row .tags span:hover { text-decoration: underline; }
+  .row .edit-link, .row .delete-btn {
+    font-family: var(--mono);
+    font-size: 13px;
+    color: var(--text-dim);
+    background: none;
+    border: none;
+    cursor: pointer;
+    padding: 2px 6px;
+    border-radius: 4px;
+    line-height: 1.4;
+    text-decoration: none;
+  }
+  .row .edit-link:hover { color: var(--accent); background: var(--ok-bg); }
+  .row .delete-btn:hover { color: var(--error); background: var(--err-bg); }
+  @media (max-width: 760px) {
+    .columns { display: block; }
+    .col-tags {
+      position: static;
+      max-height: none;
+      margin-bottom: 20px;
+    }
+    #tagbar {
+      flex-direction: row;
+      flex-wrap: wrap;
+      overflow: visible;
+    }
+  }
+  #empty, #loading {
+    display: none;
+    text-align: center;
+    color: var(--text-dim);
+    font-family: var(--mono);
+    padding: 60px 0;
+  }
+  ::-webkit-scrollbar { width: 8px; height: 8px; }
+  ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 4px; }
+  a:focus-visible, .tag-chip:focus-visible, #search:focus-visible {
+    outline: 2px solid var(--accent);
+    outline-offset: 2px;
+  }
+  @media (prefers-reduced-motion: reduce) { * { scroll-behavior: auto !important; } }
+</style>
+</head>
+<body>
+
+<div id="demo-banner" style="display:none;text-align:center;font-family:var(--mono);font-size:12.5px;color:var(--accent);background:var(--ok-bg);padding:8px;">
+  This is a public demo — try adding a bookmark, no token needed. Resets to a baseline every 6 hours.
+</div>
+<header>
+  <div class="titlebar">
+    <h1>bookmark archive</h1>
+    <div class="titlebar-right">
+      <span class="meta" id="count-line">loading...</span>
+      <select id="sort-select" title="Sort bookmarks">
+        <option value="date-desc">date added (newest)</option>
+        <option value="date-asc">date added (oldest)</option>
+        <option value="title">title (A–Z)</option>
+        <option value="title-desc">title (Z–A)</option>
+      </select>
+      <button id="theme-toggle" class="theme-toggle" type="button" title="Toggle light/dark theme">◐</button>
+      <div class="export-wrap">
+        <button id="export-btn" class="export-btn" type="button">export ▾</button>
+        <div id="export-menu" class="export-menu">
+          <button type="button" data-format="json">JSON</button>
+          <button type="button" data-format="csv">CSV</button>
+          <button type="button" data-format="txt">TXT</button>
+        </div>
+      </div>
+      <a id="import-link" class="export-btn" href="/import.html">import</a>
+      <a id="add-link" href="/add.html">+ add</a>
+    </div>
+  </div>
+  <input id="search" type="text" placeholder="Search title, notes, domain, tags...  ( / to focus )" autocomplete="off">
+</header>
+
+<main>
+  <div class="columns">
+    <div class="col-bookmarks">
+      <div id="loading">loading bookmarks...</div>
+      <div id="list"></div>
+      <div id="empty">no matches</div>
+    </div>
+    <aside class="col-tags">
+      <input id="tag-search" type="text" placeholder="filter tags..." autocomplete="off">
+      <div id="tagbar"></div>
+    </aside>
+  </div>
+</main>
+
+<script>
+let bookmarks = [];
+
+const listEl = document.getElementById('list');
+const searchEl = document.getElementById('search');
+const tagSearchEl = document.getElementById('tag-search');
+const tagbarEl = document.getElementById('tagbar');
+const emptyEl = document.getElementById('empty');
+const loadingEl = document.getElementById('loading');
+const countEl = document.getElementById('count-line');
+const sortSelect = document.getElementById('sort-select');
+
+let activeTag = null;
+
+const SORT_KEY = 'bookmark_sort';
+let currentSort = localStorage.getItem(SORT_KEY) || 'date-desc';
+sortSelect.value = currentSort;
+
+function sortBookmarks() {
+  if (currentSort === 'title') {
+    bookmarks.sort((a, b) => (a.title || '').toLowerCase().localeCompare((b.title || '').toLowerCase()));
+  } else if (currentSort === 'title-desc') {
+    bookmarks.sort((a, b) => (b.title || '').toLowerCase().localeCompare((a.title || '').toLowerCase()));
+  } else if (currentSort === 'date-asc') {
+    bookmarks.sort((a, b) => (a.date || '').localeCompare(b.date || ''));
+  } else {
+    bookmarks.sort((a, b) => (b.date || '').localeCompare(a.date || ''));
+  }
+}
+
+sortSelect.addEventListener('change', () => {
+  currentSort = sortSelect.value;
+  localStorage.setItem(SORT_KEY, currentSort);
+  sortBookmarks();
+  render();
+});
+
+const HTML_ESCAPES = { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' };
+function escapeHtml(s) {
+  if (!s) return '';
+  return s.replace(/[&<>"']/g, c => HTML_ESCAPES[c]);
+}
+
+const exportBtn = document.getElementById('export-btn');
+const exportMenu = document.getElementById('export-menu');
+
+exportBtn.addEventListener('click', e => {
+  e.stopPropagation();
+  exportMenu.classList.toggle('open');
+});
+document.addEventListener('click', () => exportMenu.classList.remove('open'));
+
+function downloadFile(filename, content, mime) {
+  const blob = new Blob([content], { type: mime });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+}
+
+function csvEscape(value) {
+  const s = String(value ?? '');
+  return /[",\n]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s;
+}
+
+function toJson(list) {
+  const clean = list.map(({ id, title, url, domain, notes, tags, date }) => ({ id, title, url, domain, notes, tags, date }));
+  return JSON.stringify(clean, null, 2);
+}
+
+function toCsv(list) {
+  const header = ['id', 'title', 'url', 'domain', 'notes', 'tags', 'date'];
+  const rows = list.map(b => [b.id, b.title, b.url, b.domain, b.notes, (b.tags || []).join('; '), b.date].map(csvEscape).join(','));
+  return header.join(',') + '\n' + rows.join('\n');
+}
+
+function toTxt(list) {
+  return list.map(b => [
+    b.title || '(untitled)',
+    b.url,
+    b.date ? 'Date: ' + b.date : null,
+    (b.tags && b.tags.length) ? 'Tags: ' + b.tags.join(', ') : null,
+    b.notes ? 'Notes: ' + b.notes : null,
+  ].filter(Boolean).join('\n')).join('\n\n' + '-'.repeat(40) + '\n\n');
+}
+
+exportMenu.querySelectorAll('button[data-format]').forEach(btn => {
+  btn.addEventListener('click', () => {
+    const stamp = new Date().toISOString().slice(0, 10);
+    const format = btn.dataset.format;
+    if (format === 'json') {
+      downloadFile('bookmarks-' + stamp + '.json', toJson(bookmarks), 'application/json');
+    } else if (format === 'csv') {
+      downloadFile('bookmarks-' + stamp + '.csv', '﻿' + toCsv(bookmarks), 'text/csv');
+    } else if (format === 'txt') {
+      downloadFile('bookmarks-' + stamp + '.txt', toTxt(bookmarks), 'text/plain');
+    }
+    exportMenu.classList.remove('open');
+  });
+});
+
+const themeToggle = document.getElementById('theme-toggle');
+
+function effectiveTheme() {
+  const explicit = document.documentElement.getAttribute('data-theme');
+  if (explicit) return explicit;
+  return window.matchMedia('(prefers-color-scheme: light)').matches ? 'light' : 'dark';
+}
+
+themeToggle.addEventListener('click', () => {
+  const next = effectiveTheme() === 'light' ? 'dark' : 'light';
+  localStorage.setItem('bookmark_theme', next);
+  document.documentElement.setAttribute('data-theme', next);
+});
+
+function getToken() {
+  let token = localStorage.getItem('bookmark_add_token');
+  if (!token) {
+    token = prompt('Enter your add token (set once, saved on this device):');
+    if (token) localStorage.setItem('bookmark_add_token', token.trim());
+  }
+  return token;
+}
+
+async function deleteBookmark(id) {
+  const token = getToken();
+  if (!token) return;
+  if (!confirm('Delete this bookmark?')) return;
+
+  try {
+    const res = await fetch('/.netlify/functions/delete', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': 'Bearer ' + token,
+      },
+      body: JSON.stringify({ id }),
+    });
+
+    if (res.status === 401) {
+      localStorage.removeItem('bookmark_add_token');
+      alert('Bad token — try again, then delete once more.');
+      return;
+    }
+    if (!res.ok) throw new Error('Server returned ' + res.status);
+
+    bookmarks = bookmarks.filter(b => b.id !== id);
+    renderTagbar();
+    render();
+  } catch (err) {
+    alert('Error deleting bookmark: ' + err.message);
+  }
+}
+
+function renderTagbar() {
+  const q = tagSearchEl.value.trim().toLowerCase();
+  const tagCounts = {};
+  bookmarks.forEach(b => (b.tags || []).forEach(t => tagCounts[t] = (tagCounts[t] || 0) + 1));
+  const sortedTags = Object.keys(tagCounts)
+    .filter(t => !q || t.toLowerCase().includes(q))
+    .sort((a, b) => a.toLowerCase().localeCompare(b.toLowerCase()));
+
+  tagbarEl.innerHTML = '';
+  sortedTags.forEach(tag => {
+    const chip = document.createElement('span');
+    chip.className = 'tag-chip' + (tag === activeTag ? ' active' : '');
+    chip.textContent = tag + ' (' + tagCounts[tag] + ')';
+    chip.tabIndex = 0;
+    chip.onclick = () => { activeTag = (activeTag === tag) ? null : tag; renderTagbar(); render(); };
+    tagbarEl.appendChild(chip);
+  });
+
+  if (!sortedTags.length) {
+    const none = document.createElement('div');
+    none.className = 'tag-empty';
+    none.textContent = q ? 'no matching tags' : 'no tags yet';
+    tagbarEl.appendChild(none);
+  }
+}
+
+function rowHtml(b) {
+  const tagsHtml = (b.tags || []).map(t =>
+    '<span data-tag="' + escapeHtml(t) + '">' + escapeHtml(t) + '</span>'
+  ).join('');
+
+  return `
+    <div class="row">
+      <div class="row-top">
+        <a class="title" href="${escapeHtml(b.url)}" target="_blank" rel="noopener noreferrer">${escapeHtml(b.title) || '(untitled)'}</a>
+        <span class="domain">${escapeHtml(b.domain)}</span>
+        ${b.date ? '<span class="date">' + escapeHtml(b.date) + '</span>' : ''}
+        <a class="edit-link" href="/add.html?id=${encodeURIComponent(b.id)}" title="Edit bookmark">edit</a>
+        <button class="delete-btn" data-id="${escapeHtml(b.id)}" type="button" title="Delete bookmark">delete</button>
+      </div>
+      ${b.notes ? '<div class="notes">' + escapeHtml(b.notes) + '</div>' : ''}
+      ${tagsHtml ? '<div class="tags">' + tagsHtml + '</div>' : ''}
+    </div>
+  `;
+}
+
+const MAX_RENDERED = 300;
+
+function render() {
+  const q = searchEl.value.trim().toLowerCase();
+  const tokens = q ? q.split(/\s+/).filter(Boolean) : [];
+
+  const filtered = bookmarks.filter(b => {
+    const matchesText = !tokens.length || tokens.every(t => b._searchText.includes(t));
+    const matchesTag = !activeTag || (b.tags || []).includes(activeTag);
+    return matchesText && matchesTag;
+  });
+
+  emptyEl.style.display = filtered.length ? 'none' : 'block';
+
+  if (filtered.length > MAX_RENDERED) {
+    countEl.textContent = 'showing ' + MAX_RENDERED + ' of ' + filtered.length + ' matches (' + bookmarks.length + ' total) — keep typing to narrow it down';
+  } else {
+    countEl.textContent = filtered.length + ' / ' + bookmarks.length + ' entries';
+  }
+
+  listEl.innerHTML = filtered.slice(0, MAX_RENDERED).map(rowHtml).join('');
+}
+
+// Single delegated listener instead of per-row handlers — with 1000+ rows,
+// (re)attaching a listener to every tag chip and delete button on every
+// keystroke was the cause of the search-input freeze.
+listEl.addEventListener('click', e => {
+  const tagSpan = e.target.closest('.tags span[data-tag]');
+  if (tagSpan) {
+    activeTag = tagSpan.dataset.tag;
+    renderTagbar();
+    render();
+    return;
+  }
+  const delBtn = e.target.closest('.delete-btn[data-id]');
+  if (delBtn) {
+    deleteBookmark(delBtn.dataset.id);
+  }
+});
+
+function debounce(fn, delay) {
+  let timer;
+  return (...args) => {
+    clearTimeout(timer);
+    timer = setTimeout(() => fn(...args), delay);
+  };
+}
+
+async function load() {
+  const isFirstLoad = bookmarks.length === 0;
+  if (isFirstLoad) loadingEl.style.display = 'block';
+  try {
+    const res = await fetch('/.netlify/functions/list', { cache: 'no-store' });
+    if (!res.ok) throw new Error('HTTP ' + res.status);
+    bookmarks = await res.json();
+    bookmarks.forEach(b => {
+      b._searchText = [b.title, b.notes, b.domain, b.url, (b.tags || []).join(' ')]
+        .filter(Boolean).join(' ').toLowerCase();
+    });
+    sortBookmarks();
+  } catch (err) {
+    countEl.textContent = 'failed to load';
+    listEl.innerHTML = '<div style="color:var(--text-dim);font-family:var(--mono);padding:40px 0;text-align:center">Could not load bookmarks: ' + escapeHtml(err.message) + '</div>';
+    loadingEl.style.display = 'none';
+    return;
+  }
+  loadingEl.style.display = 'none';
+  renderTagbar();
+  render();
+}
+
+searchEl.addEventListener('input', debounce(render, 120));
+tagSearchEl.addEventListener('input', renderTagbar);
+
+document.addEventListener('keydown', e => {
+  const active = document.activeElement;
+  if (e.key === '/' && active !== searchEl && active !== tagSearchEl) {
+    e.preventDefault();
+    searchEl.focus();
+    return;
+  }
+  // "/" is reserved as the focus shortcut, so swallow it here too —
+  // otherwise pressing it out of habit while already in the box types a
+  // literal "/" into the query and the results look "broken".
+  if (e.key === '/' && active === searchEl) {
+    e.preventDefault();
+    return;
+  }
+  if (e.key === 'Escape' && active === searchEl) {
+    searchEl.value = '';
+    render();
+  }
+  if (e.key === 'Escape' && active === tagSearchEl) {
+    tagSearchEl.value = '';
+    renderTagbar();
+  }
+});
+
+// Bookmarks fetched once at page load go stale if you add/edit/delete
+// elsewhere (bookmarklet, another tab or device) while this tab stays
+// open — refresh whenever the tab regains focus so search/tags/list
+// reflect what's actually in the store.
+document.addEventListener('visibilitychange', () => {
+  if (document.visibilityState === 'visible') load();
+});
+window.addEventListener('focus', load);
+
+async function checkDemoMode() {
+  try {
+    const res = await fetch('/.netlify/functions/config', { cache: 'no-store' });
+    if (res.ok) {
+      const cfg = await res.json();
+      document.getElementById('demo-banner').style.display = cfg.demoMode ? 'block' : 'none';
+    }
+  } catch {
+    // non-fatal — banner just stays hidden
+  }
+}
+
+checkDemoMode();
+load();
+</script>
+
+</body>
+</html>

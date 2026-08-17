@@ -1,0 +1,1 @@
+javascript:(function(){var s='https://YOUR-SITE.netlify.app';window.open(s+'/add.html?url='+encodeURIComponent(location.href)+'&title='+encodeURIComponent(document.title),'addbookmark','width=480,height=560');})();
